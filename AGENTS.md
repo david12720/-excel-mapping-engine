@@ -24,6 +24,7 @@ excel_mapping_engine/      ← project root (also the git root)
 │   └── run_config.example.json ← committed template
 ├── tests/                 ← pytest, 32 tests
 ├── main.py                ← entry point; reads config/run_config.json
+├── mcp_server.py          ← MCP server; exposes engine as 4 LLM-callable tools
 └── README.md              ← user-facing docs
 ```
 
@@ -34,7 +35,7 @@ excel_mapping_engine/      ← project root (also the git root)
 | Branch | Purpose |
 |--------|---------|
 | `main` | stable, merged features |
-| `feature/mirror-mode` | current working branch |
+| `feature/mcp-server` | current working branch — MCP server |
 
 Always work on a feature branch, PR into `main`.
 
@@ -44,8 +45,9 @@ Always work on a feature branch, PR into `main`.
 
 ```bash
 # from excel_mapping_engine/
-python main.py          # runs the engine
+python main.py          # runs the engine via run_config.json
 pytest tests/ -v        # runs all 32 tests
+python mcp_server.py    # starts the MCP server (for LLM clients)
 ```
 
 ---
@@ -80,6 +82,8 @@ Both modes share one `run_config.json` — switch by changing `"mode"` only.
 - **Both mode configs coexist in one JSON** — unused fields are ignored by `main.py`. Only `"mode"` needs to change between runs.
 - **Hebrew field names are normal** — column names in source files are Hebrew; treat them as opaque strings.
 - **`master_writer.upsert` is a pure function** — always returns a new DataFrame, never mutates input.
+- **MCP server wraps engine without changing it** — `mcp_server.py` builds `RunConfig` directly and calls `run()`; no core logic touched.
+- **MCP tools have no baked-in defaults** — all operational params (header_row, column names, paths) must be supplied by the user/LLM. Only `skip_keys` (defaults `[]`) and `master_file_path` (auto-generated) are optional.
 
 ---
 
