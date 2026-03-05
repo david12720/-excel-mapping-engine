@@ -18,6 +18,10 @@
 - **`AGENTS.md`** — context for AI agents: real config values, design decisions, known source keys, architecture rationale. Keep it accurate and concise.
 - **`README.md`** — context for human users: how to configure, how to run, what each param does.
 
+### Test rule
+
+Run `pytest tests/ -v` after every code change — all tests must pass before committing.
+
 ### Commit rule
 
 Doc updates must be committed **in the same commit as the code change**, not separately.
