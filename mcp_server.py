@@ -21,6 +21,7 @@ STRICT RULES — follow in every session:
 3. ALWAYS start by calling begin() — this is the entry point for every session.
 4. NEVER call run_mirror or run_search without first completing the begin() conversation flow.
 5. If a tool returns "master_file_conflict", ask the user for a new filename before retrying.
+6. NEVER ask more than one question at a time. Ask one question, wait for the answer, then ask the next.
 """,
 )
 
@@ -56,19 +57,19 @@ def begin(root_path: str) -> dict:
         "root_path": root_path,
         "total_files": len(files),
         "next_steps": (
-            "Tell the user how many Excel files were found, then ask: "
-            "'Would you like to see the list of available files?' "
-            "If yes: call list_files(root_path). If no: ask the user to type the filenames they want to process. "
-            "Then ask: "
-            "1. Which mode: mirror or search? "
-            "2. What is the sheet name? "
-            "3. What is the header row index (0 = first row)? "
-            "4. What is the key column name (mirror) or filter column name (search)? "
-            "5. What is the value column name (mirror) or search term + data column (search)? "
-            "Then ask: 'Would you like to see the available keys in the sheet before running?' "
-            "If yes: call list_keys. If no: skip. "
-            "Then ask: 'Are there any keys to skip? (mirror only — type them or leave blank for none)' "
-            "Then ask: 'Where to save the master file? (leave blank for auto)'"
+            "Ask questions ONE AT A TIME — wait for the user's answer before asking the next. "
+            "Follow this exact sequence: "
+            "Q1: 'Would you like to see the list of available files?' — if yes call list_files(root_path), if no ask which filenames to process. "
+            "Q2: 'Which mode would you like: mirror or search?' "
+            "Q3: 'What is the sheet name?' "
+            "Q4: 'What is the header row index? (0 = first row)' "
+            "Q5 (mirror): 'What is the key column name?' / (search): 'What is the filter column name?' "
+            "Q6 (mirror): 'What is the value column name?' / (search): 'What is the search term?' "
+            "Q6b (search only): 'What is the data source column name?' "
+            "Q6c (search only): 'What should the master target column be called?' "
+            "Q7: 'Would you like to see the available keys in the sheet first?' — if yes call list_keys, if no continue. "
+            "Q8 (mirror only): 'Are there any keys you want to skip? Type them or press Enter for none.' "
+            "Q9: 'Where should the master file be saved? Leave blank for auto.'"
         ),
     }
 
