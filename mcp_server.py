@@ -18,7 +18,8 @@ mcp = FastMCP(
 IMPORTANT RULES:
 - ALWAYS use the excel-engine tools for any operation involving Excel files, directories, or paths.
 - NEVER use your own file system tools or code execution to read, list, or process Excel files.
-- When the user provides a folder path or file path, your FIRST action must be list_files(source_root=<path>).
+- NEVER ask the user to upload files. The files already exist on disk. Ask for the folder path instead.
+- When starting a session, ask the user: "What is the root folder path where your Excel files are located?" then call list_files(source_root=<path>).
 - When the user asks about available fields or columns, use list_keys() — do not try to read the file yourself.
 - When the user wants to extract or mirror data, use run_mirror() or run_search() — do not write code to do it.
 
