@@ -3,6 +3,45 @@ import math
 import pandas as pd
 import pytest
 
+from engine.strategies import MirrorStrategy
+
+
+# ---------------------------------------------------------------------------
+# MirrorStrategy
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mirror():
+    return MirrorStrategy()
+
+
+def test_m01_all_rows_mapped(mirror):
+    df = pd.DataFrame({"label": ["col_a", "col_b", "col_c"], "value": [1, 2, 3]})
+    result = mirror.extract(df, "label", "", "value")
+    assert result == {"col_a": 1, "col_b": 2, "col_c": 3}
+
+
+def test_m02_nan_key_rows_skipped(mirror):
+    df = pd.DataFrame({"label": ["col_a", None, "col_c"], "value": [1, 2, 3]})
+    result = mirror.extract(df, "label", "", "value")
+    assert "col_a" in result
+    assert "col_c" in result
+    # NaN key row should not appear — its value (2) should be absent
+    assert 2 not in result.values()
+
+
+def test_m03_empty_dataframe_returns_empty_dict(mirror):
+    df = pd.DataFrame({"label": [], "value": []})
+    result = mirror.extract(df, "label", "", "value")
+    assert result == {}
+
+
+def test_m04_search_term_ignored(mirror):
+    """search_term has no effect in mirror mode."""
+    df = pd.DataFrame({"label": ["x"], "value": [99]})
+    assert mirror.extract(df, "label", "anything", "value") == {"x": 99}
+    assert mirror.extract(df, "label", "",          "value") == {"x": 99}
+
 from engine.strategies import DefaultFirstMatchStrategy
 
 
