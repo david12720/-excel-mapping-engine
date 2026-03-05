@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Local config with real paths — use run_config.example.json as template
+config/run_config.json
+
+# Generated output files
+*.xlsx

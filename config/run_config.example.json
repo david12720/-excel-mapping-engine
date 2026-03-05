@@ -1,0 +1,12 @@
+{
+  "source_root": "___",
+  "target_filenames": ["___", "___"],
+  "master_file_path": "",
+  "master_id_column": "___",
+  "source_sheet_name": "___",
+  "header_row": 0,
+  "filter_column_label": "___",
+  "search_term": "___",
+  "data_source_column": "___",
+  "master_target_column": "___"
+}
