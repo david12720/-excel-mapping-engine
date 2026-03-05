@@ -41,12 +41,13 @@ def begin(root_path: str) -> dict:
 
     files = sorted(root.rglob("*.xlsx"))
     stems = [p.stem for p in files]
-    paths = [str(p.relative_to(root)) for p in files]
+
+    abs_paths = [str(p.resolve()) for p in files]
 
     return {
         "root_path": root_path,
         "available_file_stems": stems,
-        "available_file_paths": paths,
+        "available_file_absolute_paths": abs_paths,
         "total_files": len(files),
         "next_steps": (
             "Ask the user: "
