@@ -65,7 +65,6 @@ def begin(root_path: str) -> dict:
             "3. What is the header row index (0 = first row)? "
             "4. What is the key column name (mirror) or filter column name (search)? "
             "5. What is the value column name (mirror) or search term + data column (search)? "
-            "6. What is the master ID column name? "
             "Then ask: 'Would you like to see the available keys in the sheet before running?' "
             "If yes: call list_keys. If no: skip. "
             "Then ask: 'Are there any keys to skip? (mirror only — type them or leave blank for none)' "
@@ -116,8 +115,8 @@ def run_mirror(
     source_sheet_name: str,
     key_column: str,
     value_column: str,
-    master_id_column: str,
     header_row: int,
+    master_id_column: str = "מספר בקשה",
     skip_keys: list[str] = [],
     master_file_path: str = "",
 ) -> dict:
@@ -182,8 +181,8 @@ def run_search(
     search_term: str,
     data_source_column: str,
     master_target_column: str,
-    master_id_column: str,
     header_row: int,
+    master_id_column: str = "מספר בקשה",
     master_file_path: str = "",
 ) -> dict:
     """Run search mode: opens each target file, finds the first row where
