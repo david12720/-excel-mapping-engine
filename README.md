@@ -154,3 +154,27 @@ class LastMatchStrategy(ExtractionStrategy):
 ```
 
 Pass it via `RunConfig(strategy=LastMatchStrategy(), ...)` — no engine code changes needed.
+
+---
+
+## MCP Server (LLM Interface)
+
+`mcp_server.py` exposes the engine as 4 tools that any MCP-compatible LLM client (e.g. Claude Desktop) can call conversationally — no config file editing required.
+
+### Setup
+
+```bash
+pip install -r requirements.txt   # installs mcp[cli]
+python mcp_server.py              # starts the server
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_files(source_root)` | Discover all Excel files under a directory |
+| `list_keys(file_path, sheet_name, key_column, header_row)` | Return available keys from a sheet |
+| `run_mirror(source_root, target_filenames, source_sheet_name, key_column, value_column, master_id_column, header_row, skip_keys?, master_file_path?)` | Run mirror mode |
+| `run_search(source_root, target_filenames, source_sheet_name, filter_column_label, search_term, data_source_column, master_target_column, master_id_column, header_row, master_file_path?)` | Run search mode |
+
+`master_file_path` is auto-generated (`master_mirror.xlsx` / `master_search.xlsx` in `source_root`) if not provided. All other parameters must be supplied explicitly.
