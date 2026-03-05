@@ -1,12 +1,24 @@
 {
+  "_comment": "Set mode to 'search' or 'mirror'. Only fill the fields for the chosen mode.",
+
   "source_root": "___",
   "target_filenames": ["___", "___"],
   "master_file_path": "",
   "master_id_column": "___",
   "source_sheet_name": "___",
   "header_row": 0,
-  "filter_column_label": "___",
-  "search_term": "___",
-  "data_source_column": "___",
-  "master_target_column": "___"
+
+  "mode": "search",
+
+  "_search_mode_fields": {
+    "filter_column_label": "___",
+    "search_term": "___",
+    "data_source_column": "___",
+    "master_target_column": "___"
+  },
+
+  "_mirror_mode_fields": {
+    "key_column": "___",
+    "value_column": "___"
+  }
 }

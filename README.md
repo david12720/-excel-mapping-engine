@@ -79,6 +79,36 @@ python main.py
 pytest tests/ -v
 ```
 
+## Modes
+
+### `search` (default)
+Find a specific row and extract one value into a named master column.
+
+```json
+{
+  "mode": "search",
+  "filter_column_label": "מס' סעיף במבחנים",
+  "search_term": "6(2)(א) כמות חברי גרעין",
+  "data_source_column": "תוצאה",
+  "master_target_column": "כמות חברי גרעין"
+}
+```
+Result: one new column in master per run.
+
+### `mirror`
+Map **every row** of the source sheet into the master — column A values become master column names, column B values become the data.
+
+```json
+{
+  "mode": "mirror",
+  "key_column": "מס' סעיף במבחנים",
+  "value_column": "תוצאה"
+}
+```
+Result: one master column per row in the source sheet — a complete mirror of the source table.
+
+---
+
 ## Supported Sheet Formats
 
 The engine is format-agnostic as long as `header_row` is set correctly. Two common layouts:
