@@ -25,7 +25,7 @@ class DefaultFirstMatchStrategy(ExtractionStrategy):
         data_source_column: str,
     ) -> Any:
         df = df.ffill()
-        mask = df[filter_column_label].astype(str).str.contains(search_term, na=False)
+        mask = df[filter_column_label].astype(str).str.contains(search_term, na=False, regex=False)
         matches = df[mask]
         if matches.empty:
             return None

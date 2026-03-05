@@ -15,6 +15,7 @@ A fully parameter-driven Python engine that extracts values from source Excel fi
 - **Handles merged cells** via `ffill()` before matching
 - **Configurable header row** — works with sheets that have title rows above the actual headers
 - **Column by name or index** — `data_source_column` accepts a column name (string) or a 0-based index (integer)
+- **Literal string matching** — search terms are always plain text; special characters like `(`, `)` are never treated as regex
 - **Strategy Pattern** — extraction logic is swappable without modifying engine code
 - **25 unit tests** — all behavioral contracts are covered
 
@@ -77,6 +78,30 @@ python main.py
 ```bash
 pytest tests/ -v
 ```
+
+## Supported Sheet Formats
+
+The engine is format-agnostic as long as `header_row` is set correctly. Two common layouts:
+
+**Clean 2-column format** (recommended)
+```
+| מס' סעיף במבחנים          | תוצאה |
+|---------------------------|-------|
+| 6(2)(א) כמות חברי גרעין   | 30    |
+| 5(1) ממוצע שעות התנדבות   | 111   |
+```
+Config: `header_row: 1`, `filter_column_label: "מס' סעיף במבחנים"`, `data_source_column: "תוצאה"`
+
+**Legacy multi-column format** (with title rows above the header)
+```
+Row 0: (empty)
+Row 1: תחשיב עמידה בתנאי סף :   ← title row
+Row 2: מס' סעיף | תוצאה | הסבר  ← actual header
+Row 3+: data...
+```
+Config: `header_row: 2`, `data_source_column: 4` (column index)
+
+---
 
 ## Extending
 
