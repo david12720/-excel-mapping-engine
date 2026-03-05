@@ -13,57 +13,62 @@ from engine.strategies import DefaultFirstMatchStrategy, MirrorStrategy
 
 mcp = FastMCP(
     "Excel Mapping Engine",
-    instructions="""You are working with an Excel mapping engine.
+    instructions="""You are operating an Excel mapping engine. All Excel files live on the user's local disk.
 
-IMPORTANT RULES:
-- ALWAYS use the excel-engine tools for any operation involving Excel files, directories, or paths.
-- NEVER use your own file system tools or code execution to read, list, or process Excel files.
-- NEVER ask the user to upload files. The files already exist on disk. Ask for the folder path instead.
-- When starting a session, ask the user: "What is the root folder path where your Excel files are located?" then call list_files(source_root=<path>).
-- When the user asks about available fields or columns, use list_keys() — do not try to read the file yourself.
-- When the user wants to extract or mirror data, use run_mirror() or run_search() — do not write code to do it.
-
-WORKFLOW:
-1. Ask the user for the root folder path.
-2. Ask: "Would you like to list the available Excel files first?" — if yes, call list_files. If no, ask the user to type the filenames (stems) they want to process.
-3. Ask the user which mode they want: mirror or search, and collect the required parameters for that mode.
-4. Ask: "Would you like to see the available keys in the sheet first?" — if yes, call list_keys. If no, skip it.
-5. BEFORE running:
-   - For run_mirror: ask "Are there any keys you want to skip? Type them or leave blank for none." and "Where should the master file be saved? Leave blank for auto."
-   - For run_search: ask "Where should the master file be saved? Leave blank for auto."
-6. Only call run_mirror or run_search after the user has answered all questions.
-
-NEVER skip asking about optional parameters. NEVER assume default values silently.
-NEVER ask the user to upload files.
+STRICT RULES — follow in every session:
+1. NEVER ask the user to upload files. Files are on disk. Always work with paths.
+2. NEVER use your own file/code tools. Only use the excel-engine tools provided.
+3. ALWAYS start by calling begin() — this is the entry point for every session.
+4. NEVER call run_mirror or run_search without first completing the begin() conversation flow.
 """,
 )
 
 
 def _stems(filenames: list[str]) -> list[str]:
-    """Strip extensions from filenames so target_filenames always contains stems.
-    Handles both '123' and '123.xlsx' gracefully."""
+    """Strip extensions so target_filenames always contains stems."""
     return [Path(f).stem for f in filenames]
 
 
 @mcp.tool()
-def list_files(source_root: str) -> dict:
-    """List all Excel files found recursively under source_root.
-    Returns stems (pass these directly as target_filenames) and full relative paths."""
-    root = Path(source_root)
+def begin(root_path: str) -> dict:
+    """ALWAYS call this first. Entry point for every session.
+    Ask the user: 'What is the root folder path where your Excel files are located?'
+    then call begin(root_path=<their answer>).
+    Returns available files and guides the next steps."""
+    root = Path(root_path)
     if not root.exists():
-        return {"error": f"'{source_root}' does not exist"}
+        return {"error": f"'{root_path}' does not exist. Please check the path and try again."}
+
     files = sorted(root.rglob("*.xlsx"))
+    stems = [p.stem for p in files]
+    paths = [str(p.relative_to(root)) for p in files]
+
     return {
-        "stems": [p.stem for p in files],
-        "paths": [str(p.relative_to(root)) for p in files],
+        "root_path": root_path,
+        "available_file_stems": stems,
+        "available_file_paths": paths,
+        "total_files": len(files),
+        "next_steps": (
+            "Ask the user: "
+            "1. Which files do you want to process? (or all of them) "
+            "2. Which mode: mirror or search? "
+            "3. What is the sheet name? "
+            "4. What is the header row index (0 = first row)? "
+            "5. What is the key column name (mirror) or filter column name (search)? "
+            "6. What is the value column name (mirror) or search term + data column (search)? "
+            "7. What is the master ID column name? "
+            "Then ask: Would you like to see the available keys in the sheet before running? "
+            "Then ask: Are there any keys to skip? (mirror only — type them or leave blank) "
+            "Then ask: Where to save the master file? (leave blank for auto)"
+        ),
     }
 
 
 @mcp.tool()
 def list_keys(file_path: str, sheet_name: str, key_column: str, header_row: int) -> dict:
-    """Return all non-null values from key_column in the given sheet.
-    Also returns all available column names so you can verify key_column and value_column.
-    Use this before running mirror or search mode."""
+    """Show all available keys from key_column in the given sheet.
+    Call this only if the user asks to see available keys before running.
+    Also returns available column names to help verify column name inputs."""
     df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
     if df is None:
         return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
@@ -92,24 +97,19 @@ def run_mirror(
 ) -> dict:
     """Run mirror mode: map every row of the source sheet into the master file.
     key_column values become master column names; value_column values become the data.
-    target_filenames: pass stems only e.g. ['123', '999'] — use list_files to discover them.
-    skip_keys: optional list of key values to exclude.
-    master_file_path: auto-generated as master_mirror.xlsx in source_root if not supplied."""
+    target_filenames: stems only e.g. ['123', '999'] — from begin() results.
+    skip_keys: keys to exclude (ask the user before calling).
+    master_file_path: auto-generated as master_mirror.xlsx in source_root if blank."""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_mirror.xlsx")
 
-    # Strip extensions defensively in case LLM passes '123.xlsx'
     stems = _stems(target_filenames)
-
-    # Validate files exist before running
     files_found = source_reader.find_files(source_root, stems)
     if not files_found:
         return {
             "error": "No matching files found.",
-            "source_root": source_root,
-            "target_filenames_received": target_filenames,
             "stems_searched": stems,
-            "hint": "Use list_files(source_root) to see available stems.",
+            "hint": "Call begin(root_path) to see available stems.",
         }
 
     config = RunConfig(
@@ -151,27 +151,22 @@ def run_search(
     header_row: int,
     master_file_path: str = "",
 ) -> dict:
-    """Run search mode: opens each target file, finds the first row where filter_column_label
-    contains search_term, and extracts the value from data_source_column.
-    One value per file is written into a single master column (master_target_column).
-    This is NOT for searching across files — use list_files for that.
-    target_filenames: pass stems only e.g. ['123', '999'] — use list_files to discover them.
-    master_file_path: auto-generated as master_search.xlsx in source_root if not supplied."""
+    """Run search mode: opens each target file, finds the first row where
+    filter_column_label contains search_term, extracts the value from data_source_column.
+    One value per file is written into master_target_column in the master file.
+    This is NOT for searching across files — begin() handles file discovery.
+    target_filenames: stems only e.g. ['123', '999'] — from begin() results.
+    master_file_path: auto-generated as master_search.xlsx in source_root if blank."""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_search.xlsx")
 
-    # Strip extensions defensively in case LLM passes '123.xlsx'
     stems = _stems(target_filenames)
-
-    # Validate files exist before running
     files_found = source_reader.find_files(source_root, stems)
     if not files_found:
         return {
             "error": "No matching files found.",
-            "source_root": source_root,
-            "target_filenames_received": target_filenames,
             "stems_searched": stems,
-            "hint": "Use list_files(source_root) to see available stems.",
+            "hint": "Call begin(root_path) to see available stems.",
         }
 
     config = RunConfig(
