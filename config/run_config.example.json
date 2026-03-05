@@ -19,6 +19,7 @@
 
   "_mirror_mode_fields": {
     "key_column": "___",
-    "value_column": "___"
+    "value_column": "___",
+    "skip_keys": []
   }
 }

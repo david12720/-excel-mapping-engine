@@ -66,6 +66,9 @@ cp config/run_config.example.json config/run_config.json
 | `search_term` | `str` | Substring to find (first match wins) |
 | `data_source_column` | `str\|int` | Column name or 0-based index to extract value from |
 | `master_target_column` | `str` | Column name to write/create in the Master file |
+| `key_column` | `str` | *(mirror)* Column whose values become master column names |
+| `value_column` | `str` | *(mirror)* Column whose values become master cell values |
+| `skip_keys` | `list[str]` | *(mirror, optional)* Key values to exclude — matching rows are silently skipped |
 
 ## Run
 
@@ -102,10 +105,11 @@ Map **every row** of the source sheet into the master — column A values become
 {
   "mode": "mirror",
   "key_column": "מס' סעיף במבחנים",
-  "value_column": "תוצאה"
+  "value_column": "תוצאה",
+  "skip_keys": ["row to ignore", "another row"]
 }
 ```
-Result: one master column per row in the source sheet — a complete mirror of the source table.
+Result: one master column per row in the source sheet — a complete mirror of the source table. Rows whose key column value appears in `skip_keys` are silently skipped and no master column is created for them. Omit `skip_keys` (or set it to `[]`) to mirror all rows.
 
 ---
 

@@ -166,3 +166,22 @@ def test_mirror_missing_sheet_does_not_touch_master(fake_master):
     ):
         run(config)
         mock_upsert.assert_not_called()
+
+
+def test_mirror_skip_keys_excludes_row(fake_master):
+    """M-06: skipped keys are not upserted; non-skipped keys still are."""
+    config = make_mirror_config(skip_keys=["col_x"])
+    found_files = {"file_a": Path("/fake/root/file_a.xlsx")}
+    source_df = pd.DataFrame({"label": ["col_x", "col_y"], "value": [10, 20]})
+
+    with (
+        patch("engine.orchestrator.master_writer.load_master", return_value=fake_master),
+        patch("engine.orchestrator.master_writer.save_master"),
+        patch("engine.orchestrator.source_reader.find_files", return_value=found_files),
+        patch("engine.orchestrator.source_reader.load_sheet", return_value=source_df),
+        patch("engine.orchestrator.master_writer.upsert", return_value=fake_master) as mock_upsert,
+    ):
+        run(config)
+        mock_upsert.assert_called_once_with(fake_master, "file_a", "col_y", 20)
+        calls = [c for c in mock_upsert.call_args_list if c.args[2] == "col_x"]
+        assert calls == [], "col_x should have been skipped"

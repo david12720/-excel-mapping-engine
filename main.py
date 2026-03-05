@@ -62,6 +62,7 @@ def load_config() -> RunConfig:
             config_kwargs[field] = data[field]
     if "header_row" in data:
         config_kwargs["header_row"] = int(data["header_row"])
+    config_kwargs["skip_keys"] = data.get("skip_keys", [])
 
     return RunConfig(**config_kwargs)
 
