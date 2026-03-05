@@ -126,8 +126,10 @@ def run_search(
     header_row: int,
     master_file_path: str = "",
 ) -> dict:
-    """Run search mode: find the first row matching search_term in filter_column_label
-    and extract the value from data_source_column for each target file.
+    """Run search mode: opens each target file, finds the first row where filter_column_label
+    contains search_term, and extracts the value from data_source_column.
+    One value per file is written into a single master column (master_target_column).
+    This is NOT for searching across files — use list_files for that.
     target_filenames: pass stems only e.g. ['123', '999'] — use list_files to discover them.
     master_file_path: auto-generated as master_search.xlsx in source_root if not supplied."""
     if not master_file_path:
