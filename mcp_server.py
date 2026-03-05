@@ -20,6 +20,7 @@ STRICT RULES — follow in every session:
 2. NEVER use your own file/code tools. Only use the excel-engine tools provided.
 3. ALWAYS start by calling begin() — this is the entry point for every session.
 4. NEVER call run_mirror or run_search without first completing the begin() conversation flow.
+5. If a tool returns "master_file_conflict", ask the user for a new filename before retrying.
 """,
 )
 
@@ -29,39 +30,62 @@ def _stems(filenames: list[str]) -> list[str]:
     return [Path(f).stem for f in filenames]
 
 
+def _suggest_name(path: Path) -> str:
+    """Suggest an alternative filename by appending _1, _2, etc."""
+    i = 1
+    while True:
+        candidate = path.parent / f"{path.stem}_{i}{path.suffix}"
+        if not candidate.exists():
+            return str(candidate)
+        i += 1
+
+
 @mcp.tool()
 def begin(root_path: str) -> dict:
     """ALWAYS call this first. Entry point for every session.
     Ask the user: 'What is the root folder path where your Excel files are located?'
     then call begin(root_path=<their answer>).
-    Returns available files and guides the next steps."""
+    Returns file count and asks the user if they want to list the files."""
     root = Path(root_path)
     if not root.exists():
         return {"error": f"'{root_path}' does not exist. Please check the path and try again."}
 
     files = sorted(root.rglob("*.xlsx"))
-    stems = [p.stem for p in files]
-
-    abs_paths = [str(p.resolve()) for p in files]
 
     return {
         "root_path": root_path,
-        "available_file_stems": stems,
-        "available_file_absolute_paths": abs_paths,
         "total_files": len(files),
         "next_steps": (
-            "Ask the user: "
-            "1. Which files do you want to process? (or all of them) "
-            "2. Which mode: mirror or search? "
-            "3. What is the sheet name? "
-            "4. What is the header row index (0 = first row)? "
-            "5. What is the key column name (mirror) or filter column name (search)? "
-            "6. What is the value column name (mirror) or search term + data column (search)? "
-            "7. What is the master ID column name? "
-            "Then ask: Would you like to see the available keys in the sheet before running? "
-            "Then ask: Are there any keys to skip? (mirror only — type them or leave blank) "
-            "Then ask: Where to save the master file? (leave blank for auto)"
+            "Tell the user how many Excel files were found, then ask: "
+            "'Would you like to see the list of available files?' "
+            "If yes: call list_files(root_path). If no: ask the user to type the filenames they want to process. "
+            "Then ask: "
+            "1. Which mode: mirror or search? "
+            "2. What is the sheet name? "
+            "3. What is the header row index (0 = first row)? "
+            "4. What is the key column name (mirror) or filter column name (search)? "
+            "5. What is the value column name (mirror) or search term + data column (search)? "
+            "6. What is the master ID column name? "
+            "Then ask: 'Would you like to see the available keys in the sheet before running?' "
+            "If yes: call list_keys. If no: skip. "
+            "Then ask: 'Are there any keys to skip? (mirror only — type them or leave blank for none)' "
+            "Then ask: 'Where to save the master file? (leave blank for auto)'"
         ),
+    }
+
+
+@mcp.tool()
+def list_files(root_path: str) -> dict:
+    """List all Excel file stems and absolute paths under root_path.
+    Call this only if the user asks to see the available files.
+    Pass stems (not paths) to target_filenames in run_mirror or run_search."""
+    root = Path(root_path)
+    if not root.exists():
+        return {"error": f"'{root_path}' does not exist"}
+    files = sorted(root.rglob("*.xlsx"))
+    return {
+        "stems": [p.stem for p in files],
+        "absolute_paths": [str(p.resolve()) for p in files],
     }
 
 
@@ -69,7 +93,8 @@ def begin(root_path: str) -> dict:
 def list_keys(file_path: str, sheet_name: str, key_column: str, header_row: int) -> dict:
     """Show all available keys from key_column in the given sheet.
     Call this only if the user asks to see available keys before running.
-    Also returns available column names to help verify column name inputs."""
+    Also returns available column names to help verify column name inputs.
+    Use absolute paths from begin() or list_files() for file_path."""
     df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
     if df is None:
         return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
@@ -98,11 +123,20 @@ def run_mirror(
 ) -> dict:
     """Run mirror mode: map every row of the source sheet into the master file.
     key_column values become master column names; value_column values become the data.
-    target_filenames: stems only e.g. ['123', '999'] — from begin() results.
+    target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
     skip_keys: keys to exclude (ask the user before calling).
-    master_file_path: auto-generated as master_mirror.xlsx in source_root if blank."""
+    master_file_path: auto-generated as master_mirror.xlsx in source_root if blank.
+    If master file already exists, returns master_file_conflict — ask user for a new name."""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_mirror.xlsx")
+
+    if Path(master_file_path).exists():
+        return {
+            "master_file_conflict": True,
+            "existing_file": master_file_path,
+            "suggested_name": _suggest_name(Path(master_file_path)),
+            "action": "Ask the user: 'The file already exists. Provide a new name or use the suggested one.'",
+        }
 
     stems = _stems(target_filenames)
     files_found = source_reader.find_files(source_root, stems)
@@ -110,7 +144,7 @@ def run_mirror(
         return {
             "error": "No matching files found.",
             "stems_searched": stems,
-            "hint": "Call begin(root_path) to see available stems.",
+            "hint": "Call list_files(root_path) to see available stems.",
         }
 
     config = RunConfig(
@@ -156,10 +190,19 @@ def run_search(
     filter_column_label contains search_term, extracts the value from data_source_column.
     One value per file is written into master_target_column in the master file.
     This is NOT for searching across files — begin() handles file discovery.
-    target_filenames: stems only e.g. ['123', '999'] — from begin() results.
-    master_file_path: auto-generated as master_search.xlsx in source_root if blank."""
+    target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
+    master_file_path: auto-generated as master_search.xlsx in source_root if blank.
+    If master file already exists, returns master_file_conflict — ask user for a new name."""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_search.xlsx")
+
+    if Path(master_file_path).exists():
+        return {
+            "master_file_conflict": True,
+            "existing_file": master_file_path,
+            "suggested_name": _suggest_name(Path(master_file_path)),
+            "action": "Ask the user: 'The file already exists. Provide a new name or use the suggested one.'",
+        }
 
     stems = _stems(target_filenames)
     files_found = source_reader.find_files(source_root, stems)
@@ -167,7 +210,7 @@ def run_search(
         return {
             "error": "No matching files found.",
             "stems_searched": stems,
-            "hint": "Call begin(root_path) to see available stems.",
+            "hint": "Call list_files(root_path) to see available stems.",
         }
 
     config = RunConfig(
