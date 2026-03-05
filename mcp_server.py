@@ -25,7 +25,12 @@ IMPORTANT RULES:
 WORKFLOW:
 1. list_files → discover available file stems
 2. list_keys → discover available columns and keys in a sheet
-3. run_mirror or run_search → execute the extraction
+3. BEFORE calling run_mirror or run_search: ask the user about every optional parameter explicitly:
+   - For run_mirror: ask "Which keys would you like to skip? (or none)" and "Where should the master file be saved? (or leave blank for auto)"
+   - For run_search: ask "Where should the master file be saved? (or leave blank for auto)"
+4. Only call run_mirror or run_search after the user has answered all optional parameter questions.
+
+NEVER skip asking about optional parameters. NEVER assume default values silently.
 """,
 )
 
