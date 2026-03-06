@@ -4,16 +4,53 @@ import sys
 from pathlib import Path
 
 from engine.orchestrator import RunConfig, run
+from engine.source_reader import load_target_list
 from engine.strategies import DefaultFirstMatchStrategy, MirrorStrategy
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-COMMON_REQUIRED = ["source_root", "target_filenames", "source_sheet_name"]
+COMMON_REQUIRED = ["source_root", "source_sheet_name"]
 SEARCH_REQUIRED = ["filter_column_label", "search_term", "data_source_column", "master_target_column"]
 MIRROR_REQUIRED = ["key_column", "value_column"]
 
 CONFIG_PATH = Path(__file__).parent / "config" / "run_config.json"
+
+
+def _resolve_target_filenames(data: dict) -> list[str]:
+    """Return target filenames from either target_filenames list or target_list_file."""
+    # Option A: explicit list
+    explicit = data.get("target_filenames", [])
+    if explicit:
+        return explicit
+
+    # Option B: load from Excel file
+    list_file = data.get("target_list_file", "").strip()
+    if list_file:
+        sheet   = data.get("target_list_sheet", "")
+        column  = data.get("target_list_column", "")
+        hrow    = int(data.get("target_list_header_row", 0))
+
+        if not sheet or not column:
+            logger.error("target_list_file set but target_list_sheet or target_list_column is missing.")
+            sys.exit(1)
+
+        stems = load_target_list(list_file, sheet, column, hrow)
+        if stems is None:
+            logger.error("Failed to load target list from '%s' (sheet='%s', column='%s').", list_file, sheet, column)
+            sys.exit(1)
+        if not stems:
+            logger.error("Target list file returned no filenames.")
+            sys.exit(1)
+
+        logger.info("Loaded %d target filenames from '%s'.", len(stems), list_file)
+        return stems
+
+    logger.error(
+        "No target files specified. Set either 'target_filenames' or "
+        "'target_list_file' + 'target_list_sheet' + 'target_list_column' in config."
+    )
+    sys.exit(1)
 
 
 def load_config() -> RunConfig:
@@ -23,10 +60,6 @@ def load_config() -> RunConfig:
     missing_common = [k for k in COMMON_REQUIRED if k not in data]
     if missing_common:
         logger.error("Missing config fields: %s", missing_common)
-        sys.exit(1)
-
-    if not data["target_filenames"]:
-        logger.error("'target_filenames' must contain at least one entry.")
         sys.exit(1)
 
     if not Path(data["source_root"]).exists():
@@ -44,6 +77,8 @@ def load_config() -> RunConfig:
         logger.error("Missing fields for mode '%s': %s", mode, missing_mode)
         sys.exit(1)
 
+    target_filenames = _resolve_target_filenames(data)
+
     # Resolve master file path
     master_path = data.get("master_file_path", "").strip()
     if not master_path:
@@ -53,6 +88,7 @@ def load_config() -> RunConfig:
     strategy = MirrorStrategy() if mode == "mirror" else DefaultFirstMatchStrategy()
 
     config_kwargs = {k: data[k] for k in COMMON_REQUIRED}
+    config_kwargs["target_filenames"] = target_filenames
     config_kwargs["mode"] = mode
     config_kwargs["master_file_path"] = master_path
     config_kwargs["strategy"] = strategy

@@ -173,15 +173,15 @@ def load_target_list(file_path: str, sheet_name: str, column_name: str, header_r
     The column must contain plain filename stems (e.g. '123', '999') — no extensions, no paths.
     Call this when the user provides an Excel file that contains the list of files to process.
     Returns the stems so the LLM can show them to the user before running."""
-    df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
-    if df is None:
-        return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
-    if column_name not in df.columns:
+    stems = source_reader.load_target_list(file_path, sheet_name, column_name, header_row)
+    if stems is None:
+        df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
+        if df is None:
+            return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
         return {
             "error": f"Column '{column_name}' not found",
             "available_columns": list(df.columns),
         }
-    stems = [str(v) for v in df[column_name].dropna().tolist()]
     return {
         "stems": stems,
         "total": len(stems),
