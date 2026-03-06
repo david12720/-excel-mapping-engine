@@ -66,7 +66,6 @@ cp config/run_config.example.json config/run_config.json
 | `search_term` | `str` | Substring to find (first match wins) |
 | `data_source_column` | `str\|int` | Column name or 0-based index to extract value from |
 | `master_target_column` | `str` | Column name to write/create in the Master file |
-| `target_filenames` | `list[str]` | Explicit list of filename stems — use this **or** `target_list_file` |
 | `target_list_file` | `str` | Path to an Excel file containing a column of filename stems |
 | `target_list_sheet` | `str` | Sheet name in the target list file |
 | `target_list_column` | `str` | Column header containing the stems |

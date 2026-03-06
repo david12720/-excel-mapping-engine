@@ -18,39 +18,29 @@ CONFIG_PATH = Path(__file__).parent / "config" / "run_config.json"
 
 
 def _resolve_target_filenames(data: dict) -> list[str]:
-    """Return target filenames from either target_filenames list or target_list_file."""
-    # Option A: explicit list
-    explicit = data.get("target_filenames", [])
-    if explicit:
-        return explicit
-
-    # Option B: load from Excel file
+    """Load target filename stems from the Excel list file specified in config."""
     list_file = data.get("target_list_file", "").strip()
-    if list_file:
-        sheet   = data.get("target_list_sheet", "")
-        column  = data.get("target_list_column", "")
-        hrow    = int(data.get("target_list_header_row", 0))
+    sheet     = data.get("target_list_sheet", "").strip()
+    column    = data.get("target_list_column", "").strip()
+    hrow      = int(data.get("target_list_header_row", 0))
 
-        if not sheet or not column:
-            logger.error("target_list_file set but target_list_sheet or target_list_column is missing.")
-            sys.exit(1)
+    if not list_file or not sheet or not column:
+        logger.error(
+            "Missing target file config. Set 'target_list_file', "
+            "'target_list_sheet', and 'target_list_column' in run_config.json."
+        )
+        sys.exit(1)
 
-        stems = load_target_list(list_file, sheet, column, hrow)
-        if stems is None:
-            logger.error("Failed to load target list from '%s' (sheet='%s', column='%s').", list_file, sheet, column)
-            sys.exit(1)
-        if not stems:
-            logger.error("Target list file returned no filenames.")
-            sys.exit(1)
+    stems = load_target_list(list_file, sheet, column, hrow)
+    if stems is None:
+        logger.error("Failed to load target list from '%s' (sheet='%s', column='%s').", list_file, sheet, column)
+        sys.exit(1)
+    if not stems:
+        logger.error("Target list file returned no filenames.")
+        sys.exit(1)
 
-        logger.info("Loaded %d target filenames from '%s'.", len(stems), list_file)
-        return stems
-
-    logger.error(
-        "No target files specified. Set either 'target_filenames' or "
-        "'target_list_file' + 'target_list_sheet' + 'target_list_column' in config."
-    )
-    sys.exit(1)
+    logger.info("Loaded %d target filenames from '%s'.", len(stems), list_file)
+    return stems
 
 
 def load_config() -> RunConfig:

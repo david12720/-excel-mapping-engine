@@ -2,9 +2,6 @@
   "_comment": "Set mode to 'search' or 'mirror'. Only fill the fields for the chosen mode.",
 
   "source_root": "___",
-
-  "_target_files_comment": "Use ONE of the two options below. Leave the other empty/[].",
-  "target_filenames": [],
   "target_list_file": "___",
   "target_list_sheet": "___",
   "target_list_column": "___",
