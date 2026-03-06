@@ -28,7 +28,6 @@ class RunConfig:
     master_id_column: str = "id"    # name of the key column in the Master file
     header_row: int = 0             # row index of the header (0 = first row)
     skip_keys: list[str] = field(default_factory=list)
-    skip_existing: bool = False
     strategy: ExtractionStrategy = field(default_factory=DefaultFirstMatchStrategy)
 
 
@@ -69,9 +68,9 @@ def run(config: RunConfig) -> None:
                 skip_set = set(config.skip_keys)
                 value = {k: v for k, v in value.items() if k not in skip_set}
             for col_name, col_value in value.items():
-                master_df = master_writer.upsert(master_df, stem, col_name, col_value, config.skip_existing)
+                master_df = master_writer.upsert(master_df, stem, col_name, col_value)
         else:
-            master_df = master_writer.upsert(master_df, stem, config.master_target_column, value, config.skip_existing)
+            master_df = master_writer.upsert(master_df, stem, config.master_target_column, value)
 
         processed += 1
 

@@ -112,7 +112,7 @@ def test_correct_value_written_on_success(fake_master, fake_source_df):
     ):
         run(config)
         mock_upsert.assert_called_once_with(
-            fake_master, "file_a", config.master_target_column, 42, False
+            fake_master, "file_a", config.master_target_column, 42
         )
 
 
@@ -149,8 +149,8 @@ def test_mirror_upsert_called_per_row(fake_master):
     ):
         run(config)
         assert mock_upsert.call_count == 2
-        mock_upsert.assert_any_call(fake_master, "file_a", "col_x", 10, False)
-        mock_upsert.assert_any_call(fake_master, "file_a", "col_y", 20, False)
+        mock_upsert.assert_any_call(fake_master, "file_a", "col_x", 10)
+        mock_upsert.assert_any_call(fake_master, "file_a", "col_y", 20)
 
 
 def test_mirror_missing_sheet_does_not_touch_master(fake_master):
@@ -182,6 +182,6 @@ def test_mirror_skip_keys_excludes_row(fake_master):
         patch("engine.orchestrator.master_writer.upsert", return_value=fake_master) as mock_upsert,
     ):
         run(config)
-        mock_upsert.assert_called_once_with(fake_master, "file_a", "col_y", 20, False)
+        mock_upsert.assert_called_once_with(fake_master, "file_a", "col_y", 20)
         calls = [c for c in mock_upsert.call_args_list if c.args[2] == "col_x"]
         assert calls == [], "col_x should have been skipped"

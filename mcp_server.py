@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -18,21 +19,36 @@ mcp = FastMCP(
 STRICT RULES — follow in every session:
 1. NEVER ask the user to upload files. Files are on disk. Always work with paths.
 2. NEVER use your own file/code tools. Only use the excel-engine tools provided.
-3. ALWAYS start by calling begin() — this is the entry point for every session.
-4. NEVER call run_mirror or run_search without first completing the begin() conversation flow.
-5. If a tool returns "master_file_conflict", ask the user for a new filename before retrying.
+3. ALWAYS start by calling begin() — no parameters needed. It is the entry point for every session.
+4. NEVER call run_mirror or run_search without completing the full conversation flow first.
+5. If a tool returns "master_file_conflict", ask the user to choose override/merge/rename before retrying.
 6. NEVER ask more than one question at a time. Ask one question, wait for the answer, then ask the next.
+7. After a successful run, always ask: "Would you like to save these settings for future sessions?"
+   If yes: call save_session() with a name provided by the user.
 """,
 )
 
+SESSIONS_FILE = Path(__file__).parent / "config" / "sessions.json"
+
+
+def _load_sessions() -> dict:
+    if not SESSIONS_FILE.exists():
+        return {}
+    with open(SESSIONS_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_sessions(sessions: dict) -> None:
+    SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(SESSIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(sessions, f, ensure_ascii=False, indent=2)
+
 
 def _stems(filenames: list[str]) -> list[str]:
-    """Strip extensions so target_filenames always contains stems."""
     return [Path(f).stem for f in filenames]
 
 
 def _suggest_name(path: Path) -> str:
-    """Suggest an alternative filename by appending _1, _2, etc."""
     i = 1
     while True:
         candidate = path.parent / f"{path.stem}_{i}{path.suffix}"
@@ -42,11 +58,34 @@ def _suggest_name(path: Path) -> str:
 
 
 @mcp.tool()
-def begin(root_path: str) -> dict:
-    """ALWAYS call this first. Entry point for every session.
-    Ask the user: 'What is the root folder path where your Excel files are located?'
-    then call begin(root_path=<their answer>).
-    Returns file count and asks the user if they want to list the files."""
+def begin() -> dict:
+    """ALWAYS call this first. No parameters needed.
+    Loads saved sessions and returns them so the user can choose to reuse one or start fresh."""
+    sessions = _load_sessions()
+
+    if sessions:
+        return {
+            "saved_sessions": sessions,
+            "next_steps": (
+                "Show the user their saved sessions clearly (name + key settings). "
+                "Ask: 'Would you like to use a saved session or start fresh?' "
+                "If saved session chosen: confirm each setting with the user ONE AT A TIME before running — "
+                "they may want to change some values. "
+                "If fresh start: ask for the root folder path, then call start_session(root_path)."
+            ),
+        }
+
+    return {
+        "saved_sessions": {},
+        "next_steps": "No saved sessions found. Ask the user for their root folder path, then call start_session(root_path).",
+    }
+
+
+@mcp.tool()
+def start_session(root_path: str) -> dict:
+    """Call after begin() when starting fresh (no saved session selected).
+    Validates the root path and returns file count.
+    Then follow the Q1-Q9 conversation flow."""
     root = Path(root_path)
     if not root.exists():
         return {"error": f"'{root_path}' does not exist. Please check the path and try again."}
@@ -57,10 +96,9 @@ def begin(root_path: str) -> dict:
         "root_path": root_path,
         "total_files": len(files),
         "next_steps": (
-            "Ask questions ONE AT A TIME — wait for the user's answer before asking the next. "
-            "Follow this exact sequence: "
+            "Ask questions ONE AT A TIME — wait for the answer before asking the next. "
             "Q1: 'Would you like to see the list of available files?' — if yes call list_files(root_path), if no ask which filenames to process. "
-            "Q2: 'Which mode would you like: mirror or search?' "
+            "Q2: 'Which mode: mirror or search?' "
             "Q3: 'What is the sheet name?' "
             "Q4: 'What is the header row index? (0 = first row)' "
             "Q5 (mirror): 'What is the key column name?' / (search): 'What is the filter column name?' "
@@ -72,6 +110,45 @@ def begin(root_path: str) -> dict:
             "Q9: 'Where should the master file be saved? Leave blank for auto.'"
         ),
     }
+
+
+@mcp.tool()
+def save_session(
+    session_name: str,
+    source_root: str,
+    target_filenames: list[str],
+    source_sheet_name: str,
+    header_row: int,
+    mode: str,
+    key_column: str = "",
+    value_column: str = "",
+    filter_column_label: str = "",
+    search_term: str = "",
+    data_source_column: str = "",
+    master_target_column: str = "",
+    skip_keys: list[str] = [],
+    master_id_column: str = "מספר בקשה",
+) -> dict:
+    """Save the current run settings under a name for future sessions.
+    Call this after a successful run if the user wants to save their settings."""
+    sessions = _load_sessions()
+    sessions[session_name] = {
+        "source_root": source_root,
+        "target_filenames": target_filenames,
+        "source_sheet_name": source_sheet_name,
+        "header_row": header_row,
+        "mode": mode,
+        "key_column": key_column,
+        "value_column": value_column,
+        "filter_column_label": filter_column_label,
+        "search_term": search_term,
+        "data_source_column": data_source_column,
+        "master_target_column": master_target_column,
+        "skip_keys": skip_keys,
+        "master_id_column": master_id_column,
+    }
+    _save_sessions(sessions)
+    return {"saved": True, "session_name": session_name, "total_sessions": len(sessions)}
 
 
 @mcp.tool()
@@ -94,7 +171,7 @@ def list_keys(file_path: str, sheet_name: str, key_column: str, header_row: int)
     """Show all available keys from key_column in the given sheet.
     Call this only if the user asks to see available keys before running.
     Also returns available column names to help verify column name inputs.
-    Use absolute paths from begin() or list_files() for file_path."""
+    Use absolute paths from list_files() for file_path."""
     df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
     if df is None:
         return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
@@ -124,13 +201,13 @@ def run_mirror(
 ) -> dict:
     """Run mirror mode: map every row of the source sheet into the master file.
     key_column values become master column names; value_column values become the data.
-    target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
-    skip_keys: keys to exclude (ask the user before calling).
+    target_filenames: stems only e.g. ['123', '999'].
+    skip_keys: keys to exclude.
     master_file_path: auto-generated as master_mirror.xlsx in source_root if blank.
-    conflict_resolution: how to handle an existing master file —
-      '' (default): detect and ask the user to choose
-      'override': delete existing file and start fresh
-      'merge': keep existing cell values, only fill missing ones (new data never overwrites old)
+    conflict_resolution:
+      '' (default): detect conflict and ask user to choose
+      'override': delete existing file, write fresh data
+      'merge': keep existing file, update all cells with new data (existing rows not in this run are preserved)
       'rename': caller must supply a new master_file_path"""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_mirror.xlsx")
@@ -143,7 +220,7 @@ def run_mirror(
             "action": (
                 "Ask the user to choose ONE option: "
                 "1. Override — delete existing file and write fresh data. "
-                "2. Merge — keep existing values, only fill in missing cells. "
+                "2. Merge — keep existing file, update cells with new data. "
                 "3. Rename — provide a new file path. "
                 "Then call run_mirror again with conflict_resolution='override', 'merge', or a new master_file_path."
             ),
@@ -171,7 +248,6 @@ def run_mirror(
         master_id_column=master_id_column,
         header_row=header_row,
         skip_keys=skip_keys,
-        skip_existing=(conflict_resolution == "merge"),
         master_file_path=master_file_path,
         strategy=MirrorStrategy(),
     )
@@ -205,13 +281,13 @@ def run_search(
     """Run search mode: opens each target file, finds the first row where
     filter_column_label contains search_term, extracts the value from data_source_column.
     One value per file is written into master_target_column in the master file.
-    This is NOT for searching across files — begin() handles file discovery.
-    target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
+    This is NOT for searching across files — use list_files for file discovery.
+    target_filenames: stems only e.g. ['123', '999'].
     master_file_path: auto-generated as master_search.xlsx in source_root if blank.
-    conflict_resolution: how to handle an existing master file —
-      '' (default): detect and ask the user to choose
-      'override': delete existing file and start fresh
-      'merge': keep existing cell values, only fill missing ones (new data never overwrites old)
+    conflict_resolution:
+      '' (default): detect conflict and ask user to choose
+      'override': delete existing file, write fresh data
+      'merge': keep existing file, update all cells with new data
       'rename': caller must supply a new master_file_path"""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_search.xlsx")
@@ -224,7 +300,7 @@ def run_search(
             "action": (
                 "Ask the user to choose ONE option: "
                 "1. Override — delete existing file and write fresh data. "
-                "2. Merge — keep existing values, only fill in missing cells. "
+                "2. Merge — keep existing file, update cells with new data. "
                 "3. Rename — provide a new file path. "
                 "Then call run_search again with conflict_resolution='override', 'merge', or a new master_file_path."
             ),
@@ -253,7 +329,6 @@ def run_search(
         master_target_column=master_target_column,
         master_id_column=master_id_column,
         header_row=header_row,
-        skip_existing=(conflict_resolution == "merge"),
         master_file_path=master_file_path,
         strategy=DefaultFirstMatchStrategy(),
     )
