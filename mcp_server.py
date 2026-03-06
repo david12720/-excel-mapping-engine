@@ -69,7 +69,9 @@ def begin() -> dict:
             "next_steps": (
                 "Show the user their saved sessions clearly (name + key settings). "
                 "Ask: 'Would you like to use a saved session or start fresh?' "
-                "If saved session chosen: confirm each setting with the user ONE AT A TIME before running — "
+                "If saved session chosen: if the session has target_list_file set, call load_target_list() "
+                "to reload the stems fresh from that file (the list may have changed). "
+                "Then confirm each setting with the user ONE AT A TIME before running — "
                 "they may want to change some values. "
                 "If fresh start: ask for the root folder path, then call start_session(root_path)."
             ),
@@ -97,7 +99,11 @@ def start_session(root_path: str) -> dict:
         "total_files": len(files),
         "next_steps": (
             "Ask questions ONE AT A TIME — wait for the answer before asking the next. "
-            "Q1: 'Would you like to see the list of available files?' — if yes call list_files(root_path), if no ask which filenames to process. "
+            "Q1: 'How would you like to specify the files to process? "
+            "(a) From an Excel list file — ask for its path, sheet, column name and header row, then call load_target_list(); "
+            "(b) Browse available files — call list_files(root_path); "
+            "(c) Type filenames manually.' "
+            "Show the loaded/typed stems to the user and confirm before continuing. "
             "Q2: 'Which mode: mirror or search?' "
             "Q3: 'What is the sheet name?' "
             "Q4: 'What is the header row index? (0 = first row)' "
@@ -116,10 +122,14 @@ def start_session(root_path: str) -> dict:
 def save_session(
     session_name: str,
     source_root: str,
-    target_filenames: list[str],
     source_sheet_name: str,
     header_row: int,
     mode: str,
+    target_filenames: list[str] = [],
+    target_list_file: str = "",
+    target_list_sheet: str = "",
+    target_list_column: str = "",
+    target_list_header_row: int = 0,
     key_column: str = "",
     value_column: str = "",
     filter_column_label: str = "",
@@ -130,14 +140,20 @@ def save_session(
     master_id_column: str = "מספר בקשה",
 ) -> dict:
     """Save the current run settings under a name for future sessions.
-    Call this after a successful run if the user wants to save their settings."""
+    Call this after a successful run if the user wants to save their settings.
+    If files were loaded from an Excel list file, pass target_list_file/sheet/column/header_row
+    instead of target_filenames — next session will re-read the file automatically."""
     sessions = _load_sessions()
     sessions[session_name] = {
         "source_root": source_root,
-        "target_filenames": target_filenames,
         "source_sheet_name": source_sheet_name,
         "header_row": header_row,
         "mode": mode,
+        "target_filenames": target_filenames,
+        "target_list_file": target_list_file,
+        "target_list_sheet": target_list_sheet,
+        "target_list_column": target_list_column,
+        "target_list_header_row": target_list_header_row,
         "key_column": key_column,
         "value_column": value_column,
         "filter_column_label": filter_column_label,
@@ -149,6 +165,28 @@ def save_session(
     }
     _save_sessions(sessions)
     return {"saved": True, "session_name": session_name, "total_sessions": len(sessions)}
+
+
+@mcp.tool()
+def load_target_list(file_path: str, sheet_name: str, column_name: str, header_row: int) -> dict:
+    """Load the list of target filename stems from a column in an Excel file.
+    The column must contain plain filename stems (e.g. '123', '999') — no extensions, no paths.
+    Call this when the user provides an Excel file that contains the list of files to process.
+    Returns the stems so the LLM can show them to the user before running."""
+    df = source_reader.load_sheet(Path(file_path), sheet_name, header_row)
+    if df is None:
+        return {"error": f"Sheet '{sheet_name}' not found in '{file_path}'"}
+    if column_name not in df.columns:
+        return {
+            "error": f"Column '{column_name}' not found",
+            "available_columns": list(df.columns),
+        }
+    stems = [str(v) for v in df[column_name].dropna().tolist()]
+    return {
+        "stems": stems,
+        "total": len(stems),
+        "next_step": "Show the stems to the user and ask: 'Are these the files you want to process?'",
+    }
 
 
 @mcp.tool()

@@ -84,6 +84,7 @@ Both modes share one `run_config.json` — switch by changing `"mode"` only.
 - **`master_writer.upsert` is a pure function** — always returns a new DataFrame, never mutates input.
 - **MCP server wraps engine without changing it** — `mcp_server.py` builds `RunConfig` directly and calls `run()`; no core logic touched.
 - **MCP tools have no baked-in defaults** — all operational params (header_row, column names, paths) must be supplied by the user/LLM. Only `skip_keys` (defaults `[]`) and `master_file_path` (auto-generated) are optional.
+- **Target file list can come from an Excel file** — `load_target_list(file_path, sheet_name, column_name, header_row)` reads a column of filename stems. Saved sessions store the list-file reference so it is re-read fresh each session (picks up new files automatically).
 - **Merge conflict resolution = skip existing, keep old value** — when `conflict_resolution='merge'`, `skip_existing=True` is passed to `upsert()`. If a cell already has a non-null value it is left unchanged; only empty/null cells are filled. New data never overwrites old data in merge mode.
 
 ---
