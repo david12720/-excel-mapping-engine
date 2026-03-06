@@ -120,23 +120,37 @@ def run_mirror(
     master_id_column: str = "מספר בקשה",
     skip_keys: list[str] = [],
     master_file_path: str = "",
+    conflict_resolution: str = "",
 ) -> dict:
     """Run mirror mode: map every row of the source sheet into the master file.
     key_column values become master column names; value_column values become the data.
     target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
     skip_keys: keys to exclude (ask the user before calling).
     master_file_path: auto-generated as master_mirror.xlsx in source_root if blank.
-    If master file already exists, returns master_file_conflict — ask user for a new name."""
+    conflict_resolution: how to handle an existing master file —
+      '' (default): detect and ask the user to choose
+      'override': delete existing file and start fresh
+      'merge': keep existing cell values, only fill missing ones (new data never overwrites old)
+      'rename': caller must supply a new master_file_path"""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_mirror.xlsx")
 
-    if Path(master_file_path).exists():
+    if Path(master_file_path).exists() and not conflict_resolution:
         return {
             "master_file_conflict": True,
             "existing_file": master_file_path,
             "suggested_name": _suggest_name(Path(master_file_path)),
-            "action": "Ask the user: 'The file already exists. Provide a new name or use the suggested one.'",
+            "action": (
+                "Ask the user to choose ONE option: "
+                "1. Override — delete existing file and write fresh data. "
+                "2. Merge — keep existing values, only fill in missing cells. "
+                "3. Rename — provide a new file path. "
+                "Then call run_mirror again with conflict_resolution='override', 'merge', or a new master_file_path."
+            ),
         }
+
+    if conflict_resolution == "override" and Path(master_file_path).exists():
+        Path(master_file_path).unlink()
 
     stems = _stems(target_filenames)
     files_found = source_reader.find_files(source_root, stems)
@@ -157,6 +171,7 @@ def run_mirror(
         master_id_column=master_id_column,
         header_row=header_row,
         skip_keys=skip_keys,
+        skip_existing=(conflict_resolution == "merge"),
         master_file_path=master_file_path,
         strategy=MirrorStrategy(),
     )
@@ -185,6 +200,7 @@ def run_search(
     header_row: int,
     master_id_column: str = "מספר בקשה",
     master_file_path: str = "",
+    conflict_resolution: str = "",
 ) -> dict:
     """Run search mode: opens each target file, finds the first row where
     filter_column_label contains search_term, extracts the value from data_source_column.
@@ -192,17 +208,30 @@ def run_search(
     This is NOT for searching across files — begin() handles file discovery.
     target_filenames: stems only e.g. ['123', '999'] — from list_files() results.
     master_file_path: auto-generated as master_search.xlsx in source_root if blank.
-    If master file already exists, returns master_file_conflict — ask user for a new name."""
+    conflict_resolution: how to handle an existing master file —
+      '' (default): detect and ask the user to choose
+      'override': delete existing file and start fresh
+      'merge': keep existing cell values, only fill missing ones (new data never overwrites old)
+      'rename': caller must supply a new master_file_path"""
     if not master_file_path:
         master_file_path = str(Path(source_root) / "master_search.xlsx")
 
-    if Path(master_file_path).exists():
+    if Path(master_file_path).exists() and not conflict_resolution:
         return {
             "master_file_conflict": True,
             "existing_file": master_file_path,
             "suggested_name": _suggest_name(Path(master_file_path)),
-            "action": "Ask the user: 'The file already exists. Provide a new name or use the suggested one.'",
+            "action": (
+                "Ask the user to choose ONE option: "
+                "1. Override — delete existing file and write fresh data. "
+                "2. Merge — keep existing values, only fill in missing cells. "
+                "3. Rename — provide a new file path. "
+                "Then call run_search again with conflict_resolution='override', 'merge', or a new master_file_path."
+            ),
         }
+
+    if conflict_resolution == "override" and Path(master_file_path).exists():
+        Path(master_file_path).unlink()
 
     stems = _stems(target_filenames)
     files_found = source_reader.find_files(source_root, stems)
@@ -224,6 +253,7 @@ def run_search(
         master_target_column=master_target_column,
         master_id_column=master_id_column,
         header_row=header_row,
+        skip_existing=(conflict_resolution == "merge"),
         master_file_path=master_file_path,
         strategy=DefaultFirstMatchStrategy(),
     )

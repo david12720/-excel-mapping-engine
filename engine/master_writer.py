@@ -9,8 +9,10 @@ def upsert(
     key: str,
     master_target_column: str,
     value: Any,
+    skip_existing: bool = False,
 ) -> pd.DataFrame:
-    """Pure function — no file I/O. Returns a new DataFrame with the upserted value."""
+    """Pure function — no file I/O. Returns a new DataFrame with the upserted value.
+    If skip_existing=True and the cell already contains a non-null value, it is left unchanged."""
     df = master_df.copy()
     id_col = df.columns[0]
 
@@ -26,6 +28,10 @@ def upsert(
         df[master_target_column] = None
 
     row_idx = df.index[row_mask][0]
+
+    if skip_existing and pd.notna(df.at[row_idx, master_target_column]):
+        return df  # keep existing value
+
     df.at[row_idx, master_target_column] = value
     return df
 

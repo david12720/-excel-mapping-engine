@@ -60,3 +60,24 @@ def test_upsert_is_pure_does_not_mutate_input():
     original_value = df.loc[df["id"] == "alpha", "score"].iloc[0]
     upsert(df, "alpha", "score", 999)
     assert df.loc[df["id"] == "alpha", "score"].iloc[0] == original_value
+
+
+def test_skip_existing_keeps_existing_value():
+    """skip_existing=True: existing non-null cell is not overwritten."""
+    df = make_master([{"id": "alpha", "score": 10}])
+    result = upsert(df, "alpha", "score", 99, skip_existing=True)
+    assert result.loc[result["id"] == "alpha", "score"].iloc[0] == 10
+
+
+def test_skip_existing_fills_missing_value():
+    """skip_existing=True: null cell is still written."""
+    df = make_master([{"id": "alpha", "score": None}])
+    result = upsert(df, "alpha", "score", 42, skip_existing=True)
+    assert result.loc[result["id"] == "alpha", "score"].iloc[0] == 42
+
+
+def test_skip_existing_false_overwrites():
+    """skip_existing=False (default): existing value is overwritten normally."""
+    df = make_master([{"id": "alpha", "score": 10}])
+    result = upsert(df, "alpha", "score", 99, skip_existing=False)
+    assert result.loc[result["id"] == "alpha", "score"].iloc[0] == 99
